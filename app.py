@@ -733,16 +733,17 @@ Answer strictly using only the sources above. Apply all rules without exception.
     return response.choices[0].message.content
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
+# ── Startup — runs under both gunicorn and direct python ──────────────────────
+
+try:
+    init_clients()
+except Exception as e:
+    print(f"❌ Could not connect to Weaviate on startup: {e}")
+
+# ── Entry point (local dev only) ──────────────────────────────────────────────
 
 if __name__ == "__main__":
     print("\n🥊 Oldschool Gladiators Boxing Archive")
-    print("   Connecting to archive...\n")
-    try:
-        init_clients()
-        print(f"✅ Connected! Archive contains {archive_count:,} chunks.\n")
-        print("   Open your browser at: http://localhost:5000\n")
-        app.run(debug=False, host="0.0.0.0", port=5000)
-    except Exception as e:
-        print(f"❌ Could not start: {e}")
-        print("\nCheck that your .env file is filled in correctly.")
+    print(f"✅ Archive contains {archive_count:,} chunks.\n")
+    print("   Open your browser at: http://localhost:5000\n")
+    app.run(debug=False, host="0.0.0.0", port=5000)
