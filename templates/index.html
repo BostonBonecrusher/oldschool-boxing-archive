@@ -738,6 +738,12 @@
         clearInterval(msgInterval);
         loading.style.display = 'none';
 
+        console.log('STATUS:', res.status);
+        console.log('DATA KEYS:', Object.keys(data));
+        console.log('ANSWER LENGTH:', data.answer ? data.answer.length : 'NO ANSWER');
+        console.log('SOURCES COUNT:', data.sources ? data.sources.length : 'NO SOURCES');
+        console.log('RAW DATA:', JSON.stringify(data).slice(0, 500));
+
         if (data.error) {
           errorBox.textContent  = data.error;
           errorBox.style.display = 'block';
