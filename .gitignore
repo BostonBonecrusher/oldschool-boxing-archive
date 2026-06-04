@@ -1,0 +1,30 @@
+# Environment — NEVER commit this
+.env
+
+# Progress logs — no need in repo
+tag_phase2_log.json
+ingestion_log.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

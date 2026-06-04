@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Oldschool Gladiators — Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f0f0f;
+      --surface:  #1a1a1a;
+      --border:   #2e2e2e;
+      --gold:     #c9953a;
+      --gold-lt:  #e8b866;
+      --text:     #e8e0d0;
+      --dim:      #9a9080;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 56px 48px;
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+    }
+
+    .gloves {
+      font-size: 2.6rem;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.7rem;
+      color: var(--gold);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: var(--dim);
+      font-size: 0.85rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 40px;
+    }
+
+    label {
+      display: block;
+      text-align: left;
+      font-size: 0.78rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 8px;
+    }
+
+    input[type="password"] {
+      width: 100%;
+      background: #111;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      padding: 14px 16px;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 20px;
+    }
+
+    input[type="password"]:focus {
+      border-color: var(--gold);
+    }
+
+    button {
+      width: 100%;
+      background: var(--gold);
+      color: #0f0f0f;
+      border: none;
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover { background: var(--gold-lt); }
+
+    .error {
+      background: rgba(139, 32, 32, 0.2);
+      border: 1px solid #8b2020;
+      border-radius: 6px;
+      color: #e88080;
+      font-size: 0.85rem;
+      padding: 10px 14px;
+      margin-bottom: 20px;
+    }
+
+    .tagline {
+      margin-top: 32px;
+      color: var(--dim);
+      font-size: 0.78rem;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="gloves">🥊</div>
+    <h1>Oldschool Gladiators</h1>
+    <p class="subtitle">Boxing History Archive</p>
+
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST">
+      <label for="password">Access Password</label>
+      <input type="password" id="password" name="password" placeholder="Enter password" autofocus />
+      <button type="submit">Enter the Archive</button>
+    </form>
+
+    <p class="tagline">"The old gladiators knew things modern boxing has forgotten."</p>
+  </div>
+</body>
+</html>

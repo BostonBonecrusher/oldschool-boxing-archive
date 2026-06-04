@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Oldschool Gladiators — Boxing History Archive</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f0f0f;
+      --surface:   #181818;
+      --surface2:  #222222;
+      --border:    #2c2c2c;
+      --border2:   #383838;
+      --gold:      #c9953a;
+      --gold-lt:   #e8b866;
+      --gold-dim:  #7a5820;
+      --text:      #e8e0d0;
+      --dim:       #8a8278;
+      --faint:     #504840;
+      --primary:   #2d4a1e;
+      --primary-b: #4a7a32;
+      --danger:    #8b2020;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      line-height: 1.65;
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+      position: sticky;
+      top: 0;
+      background: rgba(15,15,15,0.95);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.15rem;
+      color: var(--gold);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .header-divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border2);
+    }
+
+    .header-subtitle {
+      font-size: 0.78rem;
+      color: var(--dim);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .chunk-count {
+      font-size: 0.78rem;
+      color: var(--dim);
+    }
+
+    .chunk-count span {
+      color: var(--gold);
+      font-weight: 600;
+    }
+
+    .logout-btn {
+      font-size: 0.78rem;
+      color: var(--dim);
+      text-decoration: none;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+
+    .logout-btn:hover { color: var(--text); }
+
+    /* ── MAIN ── */
+    main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 60px 24px 120px;
+    }
+
+    /* ── HERO / SEARCH ── */
+    .hero {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .hero h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.4rem;
+      color: var(--text);
+      margin-bottom: 10px;
+      line-height: 1.2;
+    }
+
+    .hero h2 em {
+      color: var(--gold);
+      font-style: italic;
+    }
+
+    .hero p {
+      color: var(--dim);
+      font-size: 0.95rem;
+      margin-bottom: 36px;
+    }
+
+    .search-box {
+      display: flex;
+      gap: 0;
+      max-width: 680px;
+      margin: 0 auto 20px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border2);
+      transition: border-color 0.2s;
+    }
+
+    .search-box:focus-within { border-color: var(--gold); }
+
+    #question-input {
+      flex: 1;
+      background: var(--surface);
+      border: none;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      padding: 16px 20px;
+      outline: none;
+    }
+
+    #question-input::placeholder { color: var(--faint); }
+
+    #search-btn {
+      background: var(--gold);
+      border: none;
+      color: #0f0f0f;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 16px 28px;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    #search-btn:hover { background: var(--gold-lt); }
+    #search-btn:disabled { background: var(--gold-dim); cursor: not-allowed; }
+
+    .example-questions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 16px;
+    }
+
+    .example-q {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--dim);
+      font-size: 0.8rem;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .example-q:hover {
+      border-color: var(--gold-dim);
+      color: var(--gold-lt);
+    }
+
+    /* ── LOADING ── */
+    #loading {
+      display: none;
+      text-align: center;
+      padding: 48px 0;
+      color: var(--dim);
+      font-size: 0.9rem;
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 2px solid var(--border2);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── ERROR ── */
+    #error-box {
+      display: none;
+      background: rgba(139,32,32,0.15);
+      border: 1px solid var(--danger);
+      border-radius: 8px;
+      color: #e88080;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      font-size: 0.9rem;
+    }
+
+    /* ── RESULTS ── */
+    #results { display: none; }
+
+    .results-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .results-header h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1rem;
+      color: var(--dim);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .flag-badge {
+      font-size: 0.72rem;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .flag-records  { background: rgba(201,149,58,0.15); color: var(--gold); border: 1px solid var(--gold-dim); }
+    .flag-temporal { background: rgba(80,130,200,0.12); color: #7ab0e8; border: 1px solid #2a4a7a; }
+
+    /* ── ANSWER CARD ── */
+    .answer-card {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-left: 3px solid var(--gold);
+      border-radius: 10px;
+      padding: 32px 36px;
+      margin-bottom: 16px;
+    }
+
+    .answer-card .card-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 20px;
+    }
+
+    .answer-text {
+      font-size: 0.97rem;
+      line-height: 1.8;
+      color: var(--text);
+    }
+
+    .answer-text p { margin-bottom: 14px; }
+    .answer-text p:last-child { margin-bottom: 0; }
+
+    /* ── CONTENT NOTE & DIG DEEPER ── */
+    .secondary-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px 28px;
+      margin-bottom: 12px;
+    }
+
+    .secondary-card .card-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 14px;
+    }
+
+    .secondary-card .card-label.content-note { color: #7ab0e8; }
+    .secondary-card .card-label.dig-deeper   { color: #7ec87e; }
+
+    .secondary-card p {
+      font-size: 0.9rem;
+      color: var(--text);
+      line-height: 1.7;
+      margin-bottom: 10px;
+    }
+
+    .secondary-card p:last-child { margin-bottom: 0; }
+
+    .dig-deeper-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .dig-deeper-list li {
+      font-size: 0.88rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .dig-deeper-q {
+      display: inline-block;
+      background: rgba(126,200,126,0.08);
+      border: 1px solid rgba(126,200,126,0.2);
+      border-radius: 6px;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+      text-align: left;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.88rem;
+      color: var(--text);
+    }
+
+    .dig-deeper-q:hover {
+      background: rgba(126,200,126,0.15);
+      border-color: rgba(126,200,126,0.4);
+    }
+
+    .dig-deeper-q::before {
+      content: "→ ";
+      color: #7ec87e;
+    }
+
+    /* ── SOURCES ── */
+    .sources-section {
+      margin-top: 32px;
+    }
+
+    .sources-header {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sources-count {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--dim);
+      font-size: 0.72rem;
+      padding: 2px 10px;
+    }
+
+    .source-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+
+    .source-card:hover { border-color: var(--border2); }
+
+    .source-card.primary-source {
+      border-left: 3px solid var(--primary-b);
+    }
+
+    .source-header {
+      padding: 16px 20px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .source-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .source-index {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--gold);
+      background: rgba(201,149,58,0.1);
+      border: 1px solid var(--gold-dim);
+      border-radius: 4px;
+      padding: 2px 8px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .source-title {
+      font-size: 0.92rem;
+      font-weight: 500;
+      color: var(--text);
+      flex: 1;
+      line-height: 1.4;
+    }
+
+    .source-author-year {
+      font-size: 0.8rem;
+      color: var(--dim);
+    }
+
+    .source-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .tag {
+      font-size: 0.68rem;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 10px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .tag-primary  { background: var(--primary); color: #9eda7e; border: 1px solid var(--primary-b); }
+    .tag-type     { background: #1e2a3a; color: #7ab0e8; border: 1px solid #2a4a7a; }
+    .tag-era      { background: #2a1e3a; color: #b07ae8; border: 1px solid #4a2a7a; }
+    .tag-geo      { background: #1e2a1e; color: #7eda7e; border: 1px solid #2a4a2a; }
+    .tag-subject  { background: #2a2a1e; color: #e8da7e; border: 1px solid #4a4a2a; }
+    .tag-ocr      { background: var(--surface2); color: var(--faint); border: 1px solid var(--border); }
+
+    .source-score {
+      font-size: 0.72rem;
+      color: var(--faint);
+      margin-top: 8px;
+    }
+
+    .source-preview {
+      font-size: 0.84rem;
+      color: var(--dim);
+      line-height: 1.6;
+      font-style: italic;
+      padding: 0 20px;
+      margin-bottom: 4px;
+    }
+
+    .expand-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--gold-dim);
+      padding: 8px 20px 14px;
+      cursor: pointer;
+      transition: color 0.2s;
+      background: none;
+      border: none;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .expand-btn:hover { color: var(--gold); }
+
+    .expand-arrow {
+      display: inline-block;
+      transition: transform 0.2s;
+      font-style: normal;
+    }
+
+    .expanded .expand-arrow { transform: rotate(180deg); }
+
+    .full-passage {
+      display: none;
+      padding: 16px 20px 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    .full-passage p {
+      font-size: 0.88rem;
+      color: #c8c0b0;
+      line-height: 1.8;
+      white-space: pre-wrap;
+    }
+
+    .expand-all-btn {
+      background: none;
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      color: var(--dim);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.75rem;
+      padding: 4px 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-left: auto;
+    }
+    .expand-all-btn:hover { border-color: var(--gold-dim); color: var(--gold); }
+
+    .stitch-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #7ab0e8;
+      padding: 4px 20px 14px;
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: 'Inter', sans-serif;
+      transition: color 0.2s;
+    }
+    .stitch-btn:hover { color: #a8d0ff; }
+    .stitch-btn:disabled { color: var(--faint); cursor: default; }
+
+    .stitched-passage {
+      display: none;
+      padding: 16px 20px 20px;
+      border-top: 1px solid var(--border);
+      background: rgba(30,42,60,0.3);
+    }
+    .stitched-passage .stitch-label {
+      font-size: 0.7rem;
+      color: #7ab0e8;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .stitched-passage p {
+      font-size: 0.88rem;
+      color: #c8c0b0;
+      line-height: 1.8;
+      white-space: pre-wrap;
+    }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-left">
+      <span style="font-size:1.3rem;">🥊</span>
+      <span class="logo">Oldschool Gladiators</span>
+      <div class="header-divider"></div>
+      <span class="header-subtitle">Boxing History Archive</span>
+    </div>
+    <div class="header-right">
+      <span class="chunk-count"><span>{{ chunk_count }}</span> passages indexed</span>
+      <a href="/logout" class="logout-btn">Log out</a>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main>
+
+    <!-- HERO + SEARCH -->
+    <div class="hero">
+      <h2>Ask the <em>Archive</em></h2>
+      <p>Sourced answers from primary boxing texts — no guessing, no modern bias.</p>
+
+      <div class="search-box">
+        <input
+          type="text"
+          id="question-input"
+          placeholder="e.g. How did Harry Greb train outside of fighting?"
+          autocomplete="off"
+        />
+        <button id="search-btn">Search</button>
+      </div>
+
+      <div class="example-questions">
+        <span class="example-q">Sam Langford stories</span>
+        <span class="example-q">How did Jack Dempsey develop his punch?</span>
+        <span class="example-q">Greb's fight record</span>
+        <span class="example-q">Why did boxing decline after the 1950s?</span>
+        <span class="example-q">Henry Armstrong's training methods</span>
+        <span class="example-q">Jack Johnson controversies</span>
+      </div>
+    </div>
+
+    <!-- ERROR -->
+    <div id="error-box"></div>
+
+    <!-- LOADING -->
+    <div id="loading">
+      <div class="spinner"></div>
+      <p id="loading-msg">Searching the archive…</p>
+    </div>
+
+    <!-- RESULTS -->
+    <div id="results">
+      <div class="results-header">
+        <h3>Results</h3>
+        <span id="flag-records"  class="flag-badge flag-records"  style="display:none;">📊 Records question</span>
+        <span id="flag-temporal" class="flag-badge flag-temporal" style="display:none;">🕐 Time-period question</span>
+      </div>
+
+      <!-- AI Answer -->
+      <div class="answer-card">
+        <div class="card-label">💬 Answer</div>
+        <div id="answer-text" class="answer-text"></div>
+      </div>
+
+      <!-- Content Note -->
+      <div id="content-note-card" class="secondary-card" style="display:none;">
+        <div class="card-label content-note">🎬 Content Note</div>
+        <div id="content-note-text"></div>
+      </div>
+
+      <!-- Dig Deeper -->
+      <div id="dig-deeper-card" class="secondary-card" style="display:none;">
+        <div class="card-label dig-deeper">🔍 Dig Deeper</div>
+        <ul id="dig-deeper-list" class="dig-deeper-list"></ul>
+      </div>
+
+      <!-- Sources -->
+      <div class="sources-section">
+        <div class="sources-header">
+          📄 Sources Retrieved
+          <span id="sources-count" class="sources-count"></span>
+          <button class="expand-all-btn" id="expand-all-btn" onclick="expandAll()">Expand All</button>
+        </div>
+        <div id="sources-list"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // ── Elements ──────────────────────────────────────────────────
+    const input      = document.getElementById('question-input');
+    const btn        = document.getElementById('search-btn');
+    const loading    = document.getElementById('loading');
+    const loadingMsg = document.getElementById('loading-msg');
+    const errorBox   = document.getElementById('error-box');
+    const results    = document.getElementById('results');
+
+    // ── Example questions ─────────────────────────────────────────
+    document.querySelectorAll('.example-q').forEach(el => {
+      el.addEventListener('click', () => {
+        input.value = el.textContent;
+        doSearch();
+      });
+    });
+
+    // ── Search trigger ────────────────────────────────────────────
+    btn.addEventListener('click', doSearch);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') doSearch();
+    });
+
+    // ── Dig Deeper click — auto-fills search ──────────────────────
+    document.getElementById('dig-deeper-list').addEventListener('click', e => {
+      const q = e.target.closest('.dig-deeper-q');
+      if (q) {
+        input.value = q.dataset.question;
+        doSearch();
+      }
+    });
+
+    // ── Main search function ──────────────────────────────────────
+    async function doSearch() {
+      const question = input.value.trim();
+      if (!question) return;
+
+      // UI state: loading
+      btn.disabled = true;
+      errorBox.style.display = 'none';
+      results.style.display  = 'none';
+      loading.style.display  = 'block';
+      loadingMsg.textContent = 'Searching the archive…';
+
+      // Cycle loading messages
+      const msgs = [
+        'Searching the archive…',
+        'Reading source passages…',
+        'Consulting the historians…',
+        'Assembling sourced answer…',
+      ];
+      let msgIdx = 0;
+      const msgInterval = setInterval(() => {
+        msgIdx = (msgIdx + 1) % msgs.length;
+        loadingMsg.textContent = msgs[msgIdx];
+      }, 2200);
+
+      try {
+        const res  = await fetch('/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question }),
+        });
+        const data = await res.json();
+
+        clearInterval(msgInterval);
+        loading.style.display = 'none';
+
+        if (data.error) {
+          errorBox.textContent  = data.error;
+          errorBox.style.display = 'block';
+          btn.disabled = false;
+          return;
+        }
+
+        renderResults(data);
+
+      } catch (err) {
+        clearInterval(msgInterval);
+        loading.style.display  = 'none';
+        errorBox.textContent   = 'Connection error. Please try again.';
+        errorBox.style.display = 'block';
+      }
+
+      btn.disabled = false;
+    }
+
+    // ── Render results ────────────────────────────────────────────
+    function renderResults(data) {
+      // Flags
+      document.getElementById('flag-records').style.display  = data.flags.records  ? '' : 'none';
+      document.getElementById('flag-temporal').style.display = data.flags.temporal ? '' : 'none';
+
+      // Parse answer into sections
+      const parsed = parseAnswer(data.answer);
+
+      // Main answer
+      document.getElementById('answer-text').innerHTML = textToHtml(parsed.mainAnswer);
+
+      // Content Note
+      const cnCard = document.getElementById('content-note-card');
+      if (parsed.contentNote) {
+        document.getElementById('content-note-text').innerHTML = textToHtml(parsed.contentNote);
+        cnCard.style.display = '';
+      } else {
+        cnCard.style.display = 'none';
+      }
+
+      // Dig Deeper
+      const ddCard = document.getElementById('dig-deeper-card');
+      const ddList = document.getElementById('dig-deeper-list');
+      if (parsed.digDeeper) {
+        const questions = parseDigDeeper(parsed.digDeeper);
+        ddList.innerHTML = questions.map(q =>
+          `<li><button class="dig-deeper-q" data-question="${escHtml(q)}">${escHtml(q)}</button></li>`
+        ).join('');
+        ddCard.style.display = '';
+      } else {
+        ddCard.style.display = 'none';
+      }
+
+      // Sources
+      document.getElementById('sources-count').textContent = `${data.sources.length} passages`;
+      renderSources(data.sources);
+
+      // Show results, scroll into view
+      results.style.display = '';
+      results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // ── Render source cards ───────────────────────────────────────
+    let allSources = [];   // keep reference for expand-all
+
+    function renderSources(sources) {
+      allSources = sources;
+      const container = document.getElementById('sources-list');
+      const expandAllBtn = document.getElementById('expand-all-btn');
+      expandAllBtn.textContent = 'Expand All';
+      expandAllBtn._allOpen = false;
+
+      container.innerHTML = sources.map(s => {
+        const isPrimary  = s.primary;
+        const authorYear = [s.author, s.year ? `(${s.year})` : ''].filter(Boolean).join(' ');
+
+        const tags = [];
+        if (isPrimary)  tags.push(`<span class="tag tag-primary">Primary Source</span>`);
+        if (s.doc_type) tags.push(`<span class="tag tag-type">${s.doc_type}</span>`);
+        if (s.era)      tags.push(`<span class="tag tag-era">${s.era}</span>`);
+        if (s.geo)      tags.push(`<span class="tag tag-geo">${s.geo}</span>`);
+        if (s.subject)  tags.push(`<span class="tag tag-subject">${s.subject}</span>`);
+        if (s.ocr)      tags.push(`<span class="tag tag-ocr">OCR</span>`);
+
+        return `
+          <div class="source-card ${isPrimary ? 'primary-source' : ''}" id="source-${s.index}">
+            <div class="source-header" onclick="toggleSource(${s.index})">
+              <div class="source-top">
+                <span class="source-index">[${s.index}]</span>
+                <div>
+                  <div class="source-title">${escHtml(s.title)}</div>
+                  ${authorYear ? `<div class="source-author-year">${escHtml(authorYear)}</div>` : ''}
+                </div>
+              </div>
+              ${tags.length ? `<div class="source-tags">${tags.join('')}</div>` : ''}
+              <div class="source-score">Relevance: ${s.score}</div>
+            </div>
+            <div class="source-preview">"${escHtml(s.preview)}${s.content.length > 380 ? '…' : ''}"</div>
+            <div style="display:flex; gap:0;">
+              <button class="expand-btn" onclick="toggleSource(${s.index})">
+                <span class="expand-arrow">▼</span>
+                Read full passage
+              </button>
+              <button class="stitch-btn" id="stitch-btn-${s.index}"
+                onclick="stitchSource(${s.index}, '${escAttr(s.source_file)}', ${s.chunk_index})">
+                ⛓ Read more context
+              </button>
+            </div>
+            <div class="full-passage" id="passage-${s.index}">
+              <p>${escHtml(s.content)}</p>
+            </div>
+            <div class="stitched-passage" id="stitched-${s.index}">
+              <div class="stitch-label">⛓ Extended passage (stitched from surrounding chunks)</div>
+              <p id="stitched-text-${s.index}"></p>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ── Toggle source expansion ───────────────────────────────────
+    function toggleSource(index) {
+      const card    = document.getElementById(`source-${index}`);
+      const passage = document.getElementById(`passage-${index}`);
+      const btn     = card.querySelector('.expand-btn');
+      const isOpen  = passage.style.display === 'block';
+
+      passage.style.display = isOpen ? 'none' : 'block';
+      btn.classList.toggle('expanded', !isOpen);
+      btn.querySelector('.expand-arrow').textContent = isOpen ? '▼' : '▲';
+      btn.querySelector('.expand-arrow').nextSibling.textContent = isOpen
+        ? ' Read full passage'
+        : ' Collapse passage';
+    }
+
+    // ── Expand / collapse all sources ────────────────────────────
+    function expandAll() {
+      const btn = document.getElementById('expand-all-btn');
+      const opening = !btn._allOpen;
+      allSources.forEach(s => {
+        const passage = document.getElementById(`passage-${s.index}`);
+        const card    = document.getElementById(`source-${s.index}`);
+        const expBtn  = card ? card.querySelector('.expand-btn') : null;
+        if (!passage) return;
+        passage.style.display = opening ? 'block' : 'none';
+        if (expBtn) {
+          expBtn.classList.toggle('expanded', opening);
+          expBtn.querySelector('.expand-arrow').textContent = opening ? '▲' : '▼';
+          expBtn.querySelector('.expand-arrow').nextSibling.textContent = opening
+            ? ' Collapse passage' : ' Read full passage';
+        }
+      });
+      btn._allOpen = opening;
+      btn.textContent = opening ? 'Collapse All' : 'Expand All';
+    }
+
+    // ── Stitch: fetch surrounding chunks ─────────────────────────
+    async function stitchSource(index, sourceFile, chunkIndex) {
+      const btn        = document.getElementById(`stitch-btn-${index}`);
+      const stitchedEl = document.getElementById(`stitched-${index}`);
+      const textEl     = document.getElementById(`stitched-text-${index}`);
+
+      // Toggle off if already open
+      if (stitchedEl.style.display === 'block') {
+        stitchedEl.style.display = 'none';
+        btn.textContent = '⛓ Read more context';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '⛓ Loading context…';
+
+      try {
+        const res  = await fetch('/stitch', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ source_file: sourceFile, chunk_index: chunkIndex, radius: 2 }),
+        });
+        const data = await res.json();
+
+        if (data.error) {
+          btn.textContent = '⛓ Could not load';
+          btn.disabled = false;
+          return;
+        }
+
+        textEl.textContent = data.stitched;
+        stitchedEl.querySelector('.stitch-label').textContent =
+          `⛓ Extended passage — chunks ${data.chunk_start}–${data.chunk_end} (${data.count} chunks stitched)`;
+        stitchedEl.style.display = 'block';
+        btn.textContent = '⛓ Hide context';
+        btn.disabled = false;
+
+      } catch (e) {
+        btn.textContent = '⛓ Error loading';
+        btn.disabled = false;
+      }
+    }
+
+    // ── Parse answer into sections ────────────────────────────────
+    function parseAnswer(raw) {
+      const cnIdx = raw.search(/\bCONTENT NOTE:/i);
+      const ddIdx = raw.search(/\bDIG DEEPER:/i);
+
+      let mainAnswer, contentNote = null, digDeeper = null;
+
+      if (cnIdx !== -1 && ddIdx !== -1) {
+        mainAnswer  = raw.slice(0, cnIdx).trim();
+        contentNote = raw.slice(cnIdx + 'CONTENT NOTE:'.length, ddIdx).trim();
+        digDeeper   = raw.slice(ddIdx + 'DIG DEEPER:'.length).trim();
+      } else if (cnIdx !== -1) {
+        mainAnswer  = raw.slice(0, cnIdx).trim();
+        contentNote = raw.slice(cnIdx + 'CONTENT NOTE:'.length).trim();
+      } else if (ddIdx !== -1) {
+        mainAnswer = raw.slice(0, ddIdx).trim();
+        digDeeper  = raw.slice(ddIdx + 'DIG DEEPER:'.length).trim();
+      } else {
+        mainAnswer = raw.trim();
+      }
+
+      return { mainAnswer, contentNote, digDeeper };
+    }
+
+    // ── Parse dig deeper questions ────────────────────────────────
+    function parseDigDeeper(text) {
+      // Split on numbered lines like "1." "2." "3." or "Ask:" bullets
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      const questions = [];
+      for (const line of lines) {
+        // Strip leading number/bullet: "1. Ask: ..." or "- Ask: ..."
+        const cleaned = line.replace(/^[\d]+[.)]\s*/, '').replace(/^[-•*]\s*/, '').trim();
+        // Strip leading "Ask:" if present
+        const final = cleaned.replace(/^Ask:\s*/i, '').trim();
+        if (final.length > 10) questions.push(final);
+      }
+      return questions.slice(0, 3);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────
+    function textToHtml(text) {
+      return text
+        .split(/\n{2,}/)
+        .map(p => `<p>${escHtml(p.trim()).replace(/\n/g, '<br/>')}</p>`)
+        .join('');
+    }
+
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function escAttr(str) {
+      // Safe for use inside single-quoted HTML attributes
+      return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+  </script>
+
+</body>
+</html>
