@@ -20,7 +20,7 @@ from functools import wraps
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, session, redirect, url_for, jsonify
 import weaviate
-from weaviate.classes.init import Auth
+from weaviate.classes.init import Auth, AdditionalConfig, Timeout
 from weaviate.classes.query import MetadataQuery, HybridFusion, Filter
 from openai import OpenAI
 
@@ -81,6 +81,9 @@ def init_clients():
         cluster_url=WEAVIATE_URL,
         auth_credentials=Auth.api_key(WEAVIATE_API_KEY),
         headers={"X-OpenAI-Api-Key": OPENAI_API_KEY},
+        additional_config=AdditionalConfig(
+            timeout=Timeout(init=30, query=120, insert=180)
+        ),
     )
     collection = weaviate_client.collections.get(COLLECTION_NAME)
     openai_client = OpenAI(api_key=OPENAI_API_KEY)
@@ -408,37 +411,31 @@ def _search_archive(query, top_k=None):
 
 def _search_phase2(query, top_k=None):
     """
-    Phase 2 enhanced search.
-    Runs fighter-name and content-intent filtered passes first,
-    then falls back to standard hybrid to ensure full coverage.
+    Streamlined search — single hybrid query with optional fighter filter combined.
+    Avoids multiple sequential gRPC calls that cause Deadline Exceeded on large collections.
     """
     is_records = any(k in query.lower() for k in RECORDS_KEYWORDS)
     if top_k is None:
         top_k = TOP_K_RECORDS if is_records else TOP_K_DEFAULT
 
-    fighter_names  = _extract_fighter_names(query)
-    intent         = _detect_content_intent(query)
-    source_refs    = _extract_source_reference(query)
+    fighter_names = _extract_fighter_names(query)
+    source_refs   = _extract_source_reference(query)
+
+    # Try one filtered search first (fighter or source), then baseline
+    combined_filter = None
+    source_filter   = _build_source_filter(source_refs)
+    fighter_filter  = _build_fighter_filter(fighter_names)
+
+    if source_filter is not None:
+        combined_filter = source_filter
+    elif fighter_filter is not None:
+        combined_filter = fighter_filter
 
     result_sets = []
+    if combined_filter is not None:
+        result_sets.append(_run_hybrid(query, top_k, filters=combined_filter))
 
-    # Source title filter — highest priority
-    source_filter = _build_source_filter(source_refs)
-    if source_filter is not None:
-        result_sets.append(_run_hybrid(query, top_k, filters=source_filter))
-
-    fighter_filter = _build_fighter_filter(fighter_names)
-    intent_filter  = _build_intent_filter(intent)
-
-    if fighter_filter is not None:
-        result_sets.append(_run_hybrid(query, top_k, filters=fighter_filter))
-        if intent_filter is not None:
-            combined = Filter.all_of([fighter_filter, intent_filter])
-            result_sets.insert(0, _run_hybrid(query, top_k, filters=combined))
-    elif intent_filter is not None:
-        result_sets.append(_run_hybrid(query, top_k, filters=intent_filter))
-
-    # Always include baseline
+    # Always run baseline
     result_sets.append(_run_hybrid(query, top_k))
 
     merged = _merge_unique(result_sets)
@@ -446,6 +443,7 @@ def _search_phase2(query, top_k=None):
 
 
 def _search_expanded(query):
+    # Keep it to one extra pass max
     results1 = _search_phase2(query)
     words = query.lower().split()
     secondary = " ".join(
