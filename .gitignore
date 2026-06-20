@@ -4,6 +4,19 @@
 # Progress logs — no need in repo
 tag_phase2_log.json
 ingestion_log.json
+ingestion_log_warfare.json
+mine_stories_log.json
+mine_stories_log_warfare.json
+mine_stories_raw.jsonl
+mine_stories_raw_warfare.jsonl
+
+# Mining export artifact — regenerated locally each run, app doesn't read it
+story_bank.xlsx
+
+# Stray files from a malformed pip-install command (unremovable via this
+# OneDrive-mounted folder's bash bridge — harmless, just kept out of git)
+=0.2.0
+=4.6.0
 
 # Python
 __pycache__/

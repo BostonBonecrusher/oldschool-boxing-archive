@@ -93,6 +93,38 @@
       font-weight: 600;
     }
 
+    .topic-switcher {
+      display: flex;
+      gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .topic-btn {
+      background: none;
+      border: none;
+      color: var(--dim);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.76rem;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .topic-btn:hover { color: var(--text); }
+
+    .topic-btn.active {
+      background: var(--gold);
+      color: #0f0f0f;
+      font-weight: 600;
+    }
+
     .logout-btn {
       font-size: 0.78rem;
       color: var(--dim);
@@ -202,6 +234,58 @@
     .example-q:hover {
       border-color: var(--gold-dim);
       color: var(--gold-lt);
+    }
+
+    /* ── STORY TOOLS (Story Ideas / Browse by name) ── */
+    .story-tools {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    .story-ideas-btn {
+      background: none;
+      border: 1px solid var(--gold-dim);
+      border-radius: 20px;
+      color: var(--gold-lt);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 500;
+      padding: 8px 18px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .story-ideas-btn:hover { background: rgba(201,149,58,0.12); border-color: var(--gold); }
+    .story-ideas-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .name-picker {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 20px;
+      color: var(--dim);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.8rem;
+      padding: 8px 14px;
+      cursor: pointer;
+      outline: none;
+      max-width: 220px;
+    }
+
+    .name-picker:hover { border-color: var(--gold-dim); }
+    .name-picker:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .story-ideas-empty {
+      display: block;
+      color: var(--dim);
+      font-size: 0.85rem;
+      font-style: italic;
+      margin-top: 14px;
+      text-align: center;
+      width: 100%;
     }
 
     /* ── LOADING ── */
@@ -586,10 +670,15 @@
       <span style="font-size:1.3rem;">🥊</span>
       <span class="logo">Oldschool Gladiators</span>
       <div class="header-divider"></div>
-      <span class="header-subtitle">Boxing History Archive</span>
+      <span class="header-subtitle" id="header-subtitle">{{ topics[default_topic].label }} Archive</span>
     </div>
     <div class="header-right">
-      <span class="chunk-count"><span>{{ chunk_count }}</span> passages indexed</span>
+      <div class="topic-switcher" id="topic-switcher">
+        {% for key, cfg in topics.items() %}
+        <button class="topic-btn{{ ' active' if key == default_topic else '' }}" data-topic="{{ key }}" onclick="switchTopic('{{ key }}')">{{ cfg.label }}</button>
+        {% endfor %}
+      </div>
+      <span class="chunk-count"><span id="chunk-count-num">{{ chunk_counts[default_topic] }}</span> passages indexed</span>
       <a href="/logout" class="logout-btn">Log out</a>
     </div>
   </header>
@@ -600,26 +689,34 @@
     <!-- HERO + SEARCH -->
     <div class="hero">
       <h2>Ask the <em>Archive</em></h2>
-      <p>Sourced answers from primary boxing texts — no guessing, no modern bias.</p>
+      <p id="hero-tagline">{{ topics[default_topic].tagline }}</p>
 
       <div class="search-box">
         <input
           type="text"
           id="question-input"
-          placeholder="e.g. How did Harry Greb train outside of fighting?"
+          placeholder="{{ topics[default_topic].placeholder }}"
           autocomplete="off"
         />
         <button id="search-btn">Search</button>
       </div>
 
-      <div class="example-questions">
-        <span class="example-q">Sam Langford stories</span>
-        <span class="example-q">How did Jack Dempsey develop his punch?</span>
-        <span class="example-q">Greb's fight record</span>
-        <span class="example-q">Why did boxing decline after the 1950s?</span>
-        <span class="example-q">Henry Armstrong's training methods</span>
-        <span class="example-q">Jack Johnson controversies</span>
+      <div class="example-questions" id="example-questions">
+        {% for q in topics[default_topic].examples %}
+        <span class="example-q">{{ q }}</span>
+        {% endfor %}
       </div>
+
+      <div class="story-tools">
+        <button id="story-ideas-btn" class="story-ideas-btn" type="button">🎲 Story Ideas</button>
+        <select id="name-picker" class="name-picker">
+          <option value="">👤 Browse by name…</option>
+        </select>
+        <select id="era-picker" class="name-picker">
+          <option value="">🕰️ Filter by era…</option>
+        </select>
+      </div>
+      <div class="example-questions" id="story-ideas-list"></div>
     </div>
 
     <!-- ERROR -->
@@ -671,6 +768,11 @@
   </main>
 
   <script>
+    // ── Topic data (from Flask) ─────────────────────────────────────
+    const TOPICS       = {{ topics | tojson }};
+    const CHUNK_COUNTS = {{ chunk_counts | tojson }};
+    let currentTopic    = {{ default_topic | tojson }};
+
     // ── Elements ──────────────────────────────────────────────────
     const input      = document.getElementById('question-input');
     const btn        = document.getElementById('search-btn');
@@ -679,13 +781,143 @@
     const errorBox   = document.getElementById('error-box');
     const results    = document.getElementById('results');
 
-    // ── Example questions ─────────────────────────────────────────
-    document.querySelectorAll('.example-q').forEach(el => {
-      el.addEventListener('click', () => {
-        input.value = el.textContent;
-        doSearch();
+    // ── Example questions (re-bound whenever the list is replaced) ──
+    function bindExampleQuestions() {
+      document.querySelectorAll('.example-q').forEach(el => {
+        el.addEventListener('click', () => {
+          input.value = el.textContent;
+          doSearch();
+        });
       });
+    }
+    bindExampleQuestions();
+
+    // ── Story tools: Story Ideas (random) + Browse by name + Filter by era ──
+    const storyIdeasBtn  = document.getElementById('story-ideas-btn');
+    const namePicker     = document.getElementById('name-picker');
+    const eraPicker      = document.getElementById('era-picker');
+    const storyIdeasList = document.getElementById('story-ideas-list');
+
+    async function fetchStoryPeople(topic) {
+      namePicker.innerHTML = '<option value="">👤 Browse by name…</option>';
+      try {
+        const res  = await fetch(`/story-people?topic=${encodeURIComponent(topic)}`);
+        const data = await res.json();
+        (data.people || []).forEach(name => {
+          const opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          namePicker.appendChild(opt);
+        });
+      } catch (e) { /* leave just the default option */ }
+    }
+
+    async function fetchStoryEras(topic) {
+      eraPicker.innerHTML = '<option value="">🕰️ Filter by era…</option>';
+      try {
+        const res  = await fetch(`/story-eras?topic=${encodeURIComponent(topic)}`);
+        const data = await res.json();
+        (data.eras || []).forEach(e => {
+          const opt = document.createElement('option');
+          opt.value = e.value;
+          opt.textContent = e.label;
+          eraPicker.appendChild(opt);
+        });
+      } catch (e) { /* leave just the default option */ }
+    }
+
+    // Reads the current name + era picker values itself, so either select's
+    // change handler (or the shuffle button) can just call this with no args
+    // and get results that respect whichever filters are currently set.
+    async function fetchStoryIdeas() {
+      const person = namePicker.value;
+      const era    = eraPicker.value;
+
+      storyIdeasBtn.disabled = true;
+      namePicker.disabled = true;
+      eraPicker.disabled = true;
+      const original = storyIdeasBtn.textContent;
+      if (!person && !era) storyIdeasBtn.textContent = '🎲 Shuffling…';
+
+      try {
+        let url = `/random-stories?topic=${encodeURIComponent(currentTopic)}`;
+        if (person) url += `&person=${encodeURIComponent(person)}`;
+        if (era)    url += `&era=${encodeURIComponent(era)}`;
+        const res  = await fetch(url);
+        const data = await res.json();
+
+        if (data.stories && data.stories.length) {
+          storyIdeasList.innerHTML = data.stories.map(s =>
+            `<span class="example-q story-chip" title="${escAttr(s.category || '')}">${escHtml(s.hook)}</span>`
+          ).join('');
+          bindStoryChips();
+        } else {
+          storyIdeasList.innerHTML = `<span class="story-ideas-empty">${escHtml(data.message || 'No story ideas yet for this archive.')}</span>`;
+        }
+      } catch (e) {
+        storyIdeasList.innerHTML = `<span class="story-ideas-empty">Could not load story ideas. Try again.</span>`;
+      }
+
+      storyIdeasBtn.disabled = false;
+      namePicker.disabled = false;
+      eraPicker.disabled = false;
+      storyIdeasBtn.textContent = original;
+    }
+
+    function bindStoryChips() {
+      storyIdeasList.querySelectorAll('.story-chip').forEach(el => {
+        el.addEventListener('click', () => {
+          input.value = el.textContent;
+          doSearch();
+        });
+      });
+    }
+
+    storyIdeasBtn.addEventListener('click', () => {
+      namePicker.value = '';
+      eraPicker.value = '';
+      fetchStoryIdeas();
     });
+
+    namePicker.addEventListener('change', fetchStoryIdeas);
+    eraPicker.addEventListener('change', fetchStoryIdeas);
+
+    fetchStoryPeople(currentTopic);
+    fetchStoryEras(currentTopic);
+
+    // ── Topic switcher ───────────────────────────────────────────
+    function switchTopic(topic) {
+      if (topic === currentTopic || !TOPICS[topic]) return;
+      currentTopic = topic;
+      const cfg = TOPICS[topic];
+
+      document.getElementById('header-subtitle').textContent = `${cfg.label} Archive`;
+      document.title = `Oldschool Gladiators — ${cfg.label} Archive`;
+      document.getElementById('hero-tagline').textContent = cfg.tagline;
+      document.getElementById('chunk-count-num').textContent = CHUNK_COUNTS[topic] || '0';
+      input.placeholder = cfg.placeholder;
+
+      const exContainer = document.getElementById('example-questions');
+      exContainer.innerHTML = cfg.examples.map(q => `<span class="example-q">${escHtml(q)}</span>`).join('');
+      bindExampleQuestions();
+
+      document.querySelectorAll('.topic-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.topic === topic);
+      });
+
+      // Clear any previous search state when switching archives
+      input.value = '';
+      errorBox.style.display = 'none';
+      results.style.display  = 'none';
+
+      // Story tools are topic-specific: clear the old list/selections and
+      // pull in the new topic's name + era lists.
+      storyIdeasList.innerHTML = '';
+      namePicker.value = '';
+      eraPicker.value = '';
+      fetchStoryPeople(topic);
+      fetchStoryEras(topic);
+    }
 
     // ── Search trigger ────────────────────────────────────────────
     btn.addEventListener('click', doSearch);
@@ -731,7 +963,7 @@
         const res  = await fetch('/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question }),
+          body: JSON.stringify({ question, topic: currentTopic }),
         });
         const data = await res.json();
 
@@ -928,7 +1160,7 @@
         const res  = await fetch('/stitch', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ source_file: sourceFile, chunk_index: chunkIndex, radius: 2 }),
+          body:    JSON.stringify({ source_file: sourceFile, chunk_index: chunkIndex, radius: 2, topic: currentTopic }),
         });
         const data = await res.json();
 

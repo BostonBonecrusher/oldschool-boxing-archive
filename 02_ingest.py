@@ -1,8 +1,8 @@
 """
 02_ingest.py
 ------------
-Main ingestion script. For each PDF it:
-  1. Extracts text (auto-detects if OCR is needed)
+Main ingestion script. For each PDF or TXT file it:
+  1. Extracts text (auto-detects if OCR is needed for PDFs)
   2. Cleans and chunks the text
   3. Auto-tags every chunk with historian metadata
   4. Uploads to Weaviate
@@ -21,6 +21,7 @@ import os
 import sys
 import json
 import time
+import gc
 import argparse
 import re
 from pathlib import Path
@@ -29,7 +30,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 import pdfplumber
 import pytesseract
-from pdf2image import convert_from_path
+from pdf2image import convert_from_path, pdfinfo_from_path
 from PIL import Image
 import weaviate
 from weaviate.classes.init import Auth
@@ -103,26 +104,90 @@ def extract_text_pdfplumber(pdf_path):
     except Exception:
         return "", [], 0
 
-def extract_text_ocr(pdf_path, poppler_path=None):
+def extract_text_ocr(pdf_path, poppler_path=None, batch_size=10, max_render_height=2200):
+    """
+    OCR a PDF page-by-page in small batches instead of rasterizing the
+    whole document in one convert_from_path() call. Large or poorly-
+    scanned books at 300 DPI can otherwise buffer hundreds of full-page
+    bitmaps in memory at once (this is what pdf2image does internally
+    when asked to convert an entire document in one shot), which can
+    raise a MemoryError deep inside its subprocess pipe-reading thread.
+    Batching bounds peak memory regardless of document size.
+
+    Some scanned PDFs have an oversized embedded page size, so "300 DPI"
+    alone can render a single page as a huge multi-hundred-MB image —
+    large enough that even a small batch can exhaust memory or get
+    OOM-killed before Python ever raises a catchable MemoryError. Passing
+    `size=(None, max_render_height)` tells poppler to render directly at
+    a capped resolution (not render-then-downscale), which bounds
+    per-page memory regardless of the source page's declared dimensions.
+    2200px tall is still plenty for Tesseract to read clearly scanned
+    book text.
+    """
     print(f"      → Running OCR (may take several minutes for large files)...")
-    page_texts, full_text = [], ""
+    kwargs = {"poppler_path": poppler_path} if poppler_path else {}
+    size = (None, max_render_height)
+
     try:
-        kwargs = {"poppler_path": poppler_path} if poppler_path else {}
-        images = convert_from_path(pdf_path, dpi=300, **kwargs)
-        total_pages = len(images)
-        for i, image in enumerate(images):
-            print(f"         OCR page {i+1}/{total_pages}...", end="\r")
-            try:
-                text = pytesseract.image_to_string(image, lang="eng")
-                page_texts.append((i + 1, text))
-                full_text += text + "\n\n"
-            except Exception as e:
-                print(f"\n         ⚠️  OCR failed on page {i+1}: {e}")
-                page_texts.append((i + 1, ""))
-        print()
-        return full_text, page_texts, total_pages
-    except Exception:
+        info = pdfinfo_from_path(pdf_path, **kwargs)
+        total_pages = info.get("Pages", 0) or 0
+    except Exception as e:
+        print(f"      ⚠️  Could not read page count via pdfinfo: {e}")
+        total_pages = 0
+
+    if not total_pages:
         return "", [], 0
+
+    page_texts, full_text = [], ""
+    page_num = 1
+
+    while page_num <= total_pages:
+        last = min(page_num + batch_size - 1, total_pages)
+        images = None
+        try:
+            images = convert_from_path(pdf_path, dpi=300, size=size,
+                                        first_page=page_num, last_page=last, **kwargs)
+        except MemoryError:
+            print(f"\n      ⚠️  Out of memory rendering pages {page_num}-{last} "
+                  f"as a batch — retrying one page at a time...")
+        except Exception as e:
+            print(f"\n      ⚠️  Render failed for pages {page_num}-{last}: {e}")
+
+        if images is not None:
+            for offset, image in enumerate(images):
+                p = page_num + offset
+                print(f"         OCR page {p}/{total_pages}...", end="\r")
+                try:
+                    text = pytesseract.image_to_string(image, lang="eng")
+                except Exception as e:
+                    print(f"\n         ⚠️  OCR failed on page {p}: {e}")
+                    text = ""
+                page_texts.append((p, text))
+                full_text += text + "\n\n"
+            del images
+            gc.collect()
+        else:
+            # Fallback: render this batch one page at a time (much lower
+            # peak memory, just slower).
+            for p in range(page_num, last + 1):
+                print(f"         OCR page {p}/{total_pages}...", end="\r")
+                text = ""
+                try:
+                    single = convert_from_path(pdf_path, dpi=300, size=size,
+                                                first_page=p, last_page=p, **kwargs)
+                    if single:
+                        text = pytesseract.image_to_string(single[0], lang="eng")
+                    del single
+                except Exception as e:
+                    print(f"\n         ⚠️  OCR failed on page {p}: {e}")
+                page_texts.append((p, text))
+                full_text += text + "\n\n"
+                gc.collect()
+
+        page_num = last + 1
+
+    print()
+    return full_text, page_texts, total_pages
 
 def extract_pdf(pdf_path):
     """Try pdfplumber first; fall back to OCR if text looks bad."""
@@ -140,6 +205,17 @@ def extract_pdf(pdf_path):
         if ocr_text and len(ocr_text) > len(text):
             return ocr_text, ocr_pages, ocr_total, True
     return text, page_texts, total_pages, False
+
+
+def extract_txt(txt_path):
+    """Read a plain text file. Returns (text, total_pages=0, ocr_used=False)."""
+    try:
+        with open(txt_path, "r", encoding="utf-8", errors="replace") as f:
+            text = f.read()
+        return text, 0, False
+    except Exception as e:
+        print(f"      ⚠️  Could not read text file: {e}")
+        return "", 0, False
 
 
 # ─────────────────────────────────────────────────────────────
@@ -419,20 +495,23 @@ def main():
         print("🔄 Progress log reset.\n")
     log = load_log()
 
-    # Find PDFs
-    pdf_files   = sorted(Path(PDF_FOLDER).glob("**/*.pdf"))
+    # Find PDFs and TXT files
+    pdf_files  = sorted(Path(PDF_FOLDER).glob("**/*.pdf"))
+    txt_files  = sorted(Path(PDF_FOLDER).glob("**/*.txt"))
+    all_files  = pdf_files + txt_files
     already_done = set(log["completed"])
-    to_process  = [f for f in pdf_files if f.name not in already_done]
+    to_process = [f for f in all_files if f.name not in already_done]
 
     print(f"\n📚 Boxing Archive Ingestion")
-    print(f"   PDF folder:    {PDF_FOLDER}")
+    print(f"   Source folder: {PDF_FOLDER}")
     print(f"   Total PDFs:    {len(pdf_files)}")
+    print(f"   Total TXTs:    {len(txt_files)}")
     print(f"   Already done:  {len(already_done)}")
     print(f"   To process:    {len(to_process)}")
     print(f"   Chunk size:    {CHUNK_SIZE} chars  (overlap: {CHUNK_OVERLAP})")
 
     if not to_process:
-        print("\n✅ All PDFs already ingested! Use --reset to reprocess.")
+        print("\n✅ All files already ingested! Use --reset to reprocess.")
         sys.exit(0)
 
     # Connect
@@ -451,13 +530,18 @@ def main():
 
     success_count = fail_count = total_chunks = 0
 
-    for idx, pdf_path in enumerate(to_process, 1):
-        filename = pdf_path.name
+    for idx, file_path in enumerate(to_process, 1):
+        filename = file_path.name
+        is_txt   = file_path.suffix.lower() == ".txt"
         print(f"[{idx}/{len(to_process)}] {filename}")
 
         try:
             # 1. Extract text
-            text, page_texts, total_pages, ocr_used = extract_pdf(str(pdf_path))
+            if is_txt:
+                text, total_pages, ocr_used = extract_txt(str(file_path))
+                page_texts = []
+            else:
+                text, page_texts, total_pages, ocr_used = extract_pdf(str(file_path))
 
             if not text or len(text.strip()) < 100:
                 print(f"      ⚠️  Too little text extracted — skipping.")
@@ -467,7 +551,8 @@ def main():
                 continue
 
             text = clean_text(text)
-            print(f"      ✓ {len(text):,} chars | {total_pages} pages"
+            pages_display = f"{total_pages} pages" if total_pages else "TXT"
+            print(f"      ✓ {len(text):,} chars | {pages_display}"
                   + (" [OCR]" if ocr_used else ""))
 
             # 2. Chunk
@@ -511,8 +596,8 @@ def main():
     client.close()
     print(f"\n{'='*55}")
     print(f"✅ Done!")
-    print(f"   Successful:      {success_count} PDFs")
-    print(f"   Failed:          {fail_count} PDFs")
+    print(f"   Successful:      {success_count} files")
+    print(f"   Failed:          {fail_count} files")
     print(f"   Chunks uploaded: {total_chunks:,}")
     print(f"   Total in archive: {len(log['completed'])} PDFs")
 
