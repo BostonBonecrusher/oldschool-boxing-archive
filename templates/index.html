@@ -278,6 +278,60 @@
     .name-picker:hover { border-color: var(--gold-dim); }
     .name-picker:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    .name-picker-wrap {
+      position: relative;
+      display: inline-block;
+    }
+
+    #name-picker-input { width: 220px; cursor: text; }
+
+    .name-picker-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      max-height: 260px;
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+      z-index: 20;
+      text-align: left;
+    }
+
+    .name-picker-dropdown.open { display: block; }
+
+    .name-picker-option {
+      padding: 8px 14px;
+      font-size: 0.8rem;
+      color: var(--dim);
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .name-picker-option:hover,
+    .name-picker-option.active {
+      background: rgba(201,149,58,0.12);
+      color: var(--gold-lt);
+    }
+
+    .name-picker-option mark {
+      background: none;
+      color: var(--gold);
+      font-weight: 600;
+    }
+
+    .name-picker-empty {
+      padding: 8px 14px;
+      font-size: 0.8rem;
+      color: var(--dim);
+      font-style: italic;
+    }
+
     .story-ideas-empty {
       display: block;
       color: var(--dim);
@@ -727,15 +781,16 @@
 
       <div class="story-tools">
         <button id="story-ideas-btn" class="story-ideas-btn" type="button">🎲 Story Ideas</button>
-        <select id="name-picker" class="name-picker">
-          <option value="">👤 Browse by name…</option>
-        </select>
+        <div class="name-picker-wrap">
+          <input type="text" id="name-picker-input" class="name-picker" placeholder="👤 Browse by name…" autocomplete="off" />
+          <div id="name-picker-dropdown" class="name-picker-dropdown"></div>
+        </div>
         <select id="era-picker" class="name-picker">
           <option value="">🕰️ Filter by era…</option>
         </select>
       </div>
       <div class="example-questions" id="story-ideas-list"></div>
-      <button id="story-load-more-btn" class="story-load-more-btn" type="button">Show 25 more ⬇️</button>
+      <button id="story-load-more-btn" class="story-load-more-btn" type="button">Next 25 ⬇️</button>
     </div>
 
     <!-- ERROR -->
@@ -812,27 +867,133 @@
     bindExampleQuestions();
 
     // ── Story tools: Story Ideas (random) + Browse by name + Filter by era ──
-    const storyIdeasBtn  = document.getElementById('story-ideas-btn');
-    const namePicker     = document.getElementById('name-picker');
-    const eraPicker      = document.getElementById('era-picker');
-    const storyIdeasList = document.getElementById('story-ideas-list');
-    const loadMoreBtn    = document.getElementById('story-load-more-btn');
+    const storyIdeasBtn      = document.getElementById('story-ideas-btn');
+    const namePickerInput    = document.getElementById('name-picker-input');
+    const namePickerDropdown = document.getElementById('name-picker-dropdown');
+    const eraPicker          = document.getElementById('era-picker');
+    const storyIdeasList     = document.getElementById('story-ideas-list');
+    const loadMoreBtn        = document.getElementById('story-load-more-btn');
     const STORY_PAGE_SIZE = 25;
+    const NAME_MATCH_LIMIT = 50;
     let storyOffset = 0;
+    let allPeople = [];        // full distinct-name list for the current topic
+    let selectedPerson = '';   // the actual filter value sent to the backend
+    let currentMatches = [];   // names currently shown in the dropdown
+    let activeOptionIndex = -1;
 
     async function fetchStoryPeople(topic) {
-      namePicker.innerHTML = '<option value="">👤 Browse by name…</option>';
+      allPeople = [];
+      selectedPerson = '';
+      namePickerInput.value = '';
+      closeNameDropdown();
       try {
         const res  = await fetch(`/story-people?topic=${encodeURIComponent(topic)}`);
         const data = await res.json();
-        (data.people || []).forEach(name => {
-          const opt = document.createElement('option');
-          opt.value = name;
-          opt.textContent = name;
-          namePicker.appendChild(opt);
-        });
-      } catch (e) { /* leave just the default option */ }
+        allPeople = data.people || [];
+      } catch (e) { /* leave empty -- dropdown just won't match anything */ }
     }
+
+    // Incremental name search: as each letter is typed, narrow the list down
+    // further instead of relying on a long flat dropdown. Prefix matches
+    // ("Mu" -> "Muhammad Ali") rank above mid-name matches ("Mu" -> "Emanuel").
+    function filterPeople(query) {
+      const q = query.trim().toLowerCase();
+      if (!q) return [];
+      const starts = [];
+      const contains = [];
+      for (const name of allPeople) {
+        const idx = name.toLowerCase().indexOf(q);
+        if (idx === 0) starts.push(name);
+        else if (idx > 0) contains.push(name);
+      }
+      return starts.concat(contains).slice(0, NAME_MATCH_LIMIT);
+    }
+
+    function highlightMatch(name, query) {
+      const idx = name.toLowerCase().indexOf(query.trim().toLowerCase());
+      if (idx === -1) return escHtml(name);
+      const q = query.trim();
+      return escHtml(name.slice(0, idx)) + '<mark>' + escHtml(name.slice(idx, idx + q.length)) + '</mark>' + escHtml(name.slice(idx + q.length));
+    }
+
+    function renderNameDropdown(query) {
+      currentMatches = filterPeople(query);
+      activeOptionIndex = -1;
+      if (!query.trim()) { closeNameDropdown(); return; }
+      if (!currentMatches.length) {
+        namePickerDropdown.innerHTML = `<div class="name-picker-empty">No matching names</div>`;
+        namePickerDropdown.classList.add('open');
+        return;
+      }
+      namePickerDropdown.innerHTML = currentMatches.map((name, i) =>
+        `<div class="name-picker-option" data-index="${i}">${highlightMatch(name, query)}</div>`
+      ).join('');
+      namePickerDropdown.classList.add('open');
+      namePickerDropdown.querySelectorAll('.name-picker-option').forEach(el => {
+        el.addEventListener('click', () => selectPerson(currentMatches[Number(el.dataset.index)]));
+      });
+    }
+
+    function closeNameDropdown() {
+      namePickerDropdown.classList.remove('open');
+      namePickerDropdown.innerHTML = '';
+      currentMatches = [];
+      activeOptionIndex = -1;
+    }
+
+    function setActiveOption(index) {
+      const opts = namePickerDropdown.querySelectorAll('.name-picker-option');
+      opts.forEach(o => o.classList.remove('active'));
+      if (index >= 0 && index < opts.length) {
+        opts[index].classList.add('active');
+        opts[index].scrollIntoView({ block: 'nearest' });
+      }
+      activeOptionIndex = index;
+    }
+
+    function selectPerson(name) {
+      selectedPerson = name;
+      namePickerInput.value = name;
+      closeNameDropdown();
+      fetchStoryIdeas(true);
+    }
+
+    namePickerInput.addEventListener('input', () => {
+      const hadSelection = !!selectedPerson;
+      selectedPerson = '';
+      renderNameDropdown(namePickerInput.value);
+      // Clearing a previously-selected name back to empty should drop the
+      // name filter immediately, same as picking the blank option used to.
+      if (hadSelection && !namePickerInput.value.trim()) fetchStoryIdeas(true);
+    });
+
+    namePickerInput.addEventListener('focus', () => {
+      if (namePickerInput.value.trim() && !selectedPerson) renderNameDropdown(namePickerInput.value);
+    });
+
+    namePickerInput.addEventListener('keydown', (e) => {
+      if (!namePickerDropdown.classList.contains('open')) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveOption(Math.min(activeOptionIndex + 1, currentMatches.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveOption(Math.max(activeOptionIndex - 1, 0));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (activeOptionIndex >= 0 && currentMatches[activeOptionIndex]) {
+          selectPerson(currentMatches[activeOptionIndex]);
+        } else if (currentMatches.length === 1) {
+          selectPerson(currentMatches[0]);
+        }
+      } else if (e.key === 'Escape') {
+        closeNameDropdown();
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.name-picker-wrap')) closeNameDropdown();
+    });
 
     async function fetchStoryEras(topic) {
       eraPicker.innerHTML = '<option value="">🕰️ Filter by era…</option>';
@@ -848,20 +1009,20 @@
       } catch (e) { /* leave just the default option */ }
     }
 
-    // Reads the current name + era picker values itself, so either select's
-    // change handler (or the shuffle button) can just call this with no args
-    // and get results that respect whichever filters are currently set.
-    // Pass reset=false (used by the "Show 25 more" button) to append the
-    // next page onto the existing list instead of replacing it.
+    // Reads the current name + era filter state itself, so the name dropdown,
+    // the era <select>'s change handler, or the shuffle button can just call
+    // this with no args and get results that respect whichever filters are
+    // currently set. Pass reset=false (used by the "Next 25" button) to
+    // append the next page onto the existing list instead of replacing it.
     async function fetchStoryIdeas(reset = true) {
-      const person = namePicker.value;
+      const person = selectedPerson;
       const era    = eraPicker.value;
       const filtered = !!(person || era);
 
       if (reset) storyOffset = 0;
 
       storyIdeasBtn.disabled = true;
-      namePicker.disabled = true;
+      namePickerInput.disabled = true;
       eraPicker.disabled = true;
       loadMoreBtn.disabled = true;
       const original = storyIdeasBtn.textContent;
@@ -893,7 +1054,7 @@
       }
 
       storyIdeasBtn.disabled = false;
-      namePicker.disabled = false;
+      namePickerInput.disabled = false;
       eraPicker.disabled = false;
       loadMoreBtn.disabled = false;
       storyIdeasBtn.textContent = original;
@@ -915,12 +1076,13 @@
     }
 
     storyIdeasBtn.addEventListener('click', () => {
-      namePicker.value = '';
+      selectedPerson = '';
+      namePickerInput.value = '';
+      closeNameDropdown();
       eraPicker.value = '';
       fetchStoryIdeas();
     });
 
-    namePicker.addEventListener('change', () => fetchStoryIdeas(true));
     eraPicker.addEventListener('change', () => fetchStoryIdeas(true));
 
     fetchStoryPeople(currentTopic);
@@ -954,7 +1116,9 @@
       // Story tools are topic-specific: clear the old list/selections and
       // pull in the new topic's name + era lists.
       storyIdeasList.innerHTML = '';
-      namePicker.value = '';
+      selectedPerson = '';
+      namePickerInput.value = '';
+      closeNameDropdown();
       eraPicker.value = '';
       storyOffset = 0;
       loadMoreBtn.style.display = 'none';
