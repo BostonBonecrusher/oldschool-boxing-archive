@@ -364,13 +364,17 @@ def random_stories():
     """
     Story Ideas / Browse by name / Filter by era. With no filters, returns
     up to 5 random curated hooks (the 'surprise me' button). With ?person=
-    and/or ?era= (combinable), returns up to 8 matching stories instead,
+    and/or ?era= (combinable), returns up to 25 matching stories per page,
     sorted by wow -- someone who picked a specific filter wants the best
-    matches, not a random sample.
+    matches, not a random sample. Pass ?offset=25, ?offset=50, etc. to page
+    through the rest; the response's "has_more" flag tells the caller
+    whether another page exists.
     """
+    PAGE_SIZE = 25
     topic  = _topic_key(request.args.get("topic"))
     person = (request.args.get("person") or "").strip()
     era    = (request.args.get("era") or "").strip()
+    offset = max(0, request.args.get("offset", 0, type=int) or 0)
     pool   = story_hooks.get(topic, [])
 
     if not pool:
@@ -386,15 +390,19 @@ def random_stories():
             matches = [s for s in matches if person in s.get("people", [])]
         if era:
             matches = [s for s in matches if s.get("era") == era]
-        matches = sorted(matches, key=lambda s: s.get("wow", 0), reverse=True)[:8]
-        if not matches:
+        matches = sorted(matches, key=lambda s: s.get("wow", 0), reverse=True)
+        total = len(matches)
+        page  = matches[offset:offset + PAGE_SIZE]
+        if not page:
             who  = f" mentioning {person}" if person else ""
             when = f" from the {_era_label(topic, era)}" if era else ""
-            return jsonify({
-                "stories": [],
-                "message": f"No curated stories yet{who}{when}.",
-            })
-        return jsonify({"stories": matches})
+            msg  = "No more stories." if offset else f"No curated stories yet{who}{when}."
+            return jsonify({"stories": [], "total": total, "has_more": False, "message": msg})
+        return jsonify({
+            "stories": page,
+            "total": total,
+            "has_more": offset + PAGE_SIZE < total,
+        })
 
     n = min(5, len(pool))
     return jsonify({"stories": random.sample(pool, n)})

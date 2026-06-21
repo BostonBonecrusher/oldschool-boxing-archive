@@ -288,6 +288,24 @@
       width: 100%;
     }
 
+    .story-load-more-btn {
+      display: none;
+      background: none;
+      border: 1px solid var(--gold-dim);
+      border-radius: 20px;
+      color: var(--gold-lt);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 500;
+      padding: 8px 18px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin: 14px auto 0;
+    }
+
+    .story-load-more-btn:hover { background: rgba(201,149,58,0.12); border-color: var(--gold); }
+    .story-load-more-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
     /* ── LOADING ── */
     #loading {
       display: none;
@@ -717,6 +735,7 @@
         </select>
       </div>
       <div class="example-questions" id="story-ideas-list"></div>
+      <button id="story-load-more-btn" class="story-load-more-btn" type="button">Show 25 more ⬇️</button>
     </div>
 
     <!-- ERROR -->
@@ -797,6 +816,9 @@
     const namePicker     = document.getElementById('name-picker');
     const eraPicker      = document.getElementById('era-picker');
     const storyIdeasList = document.getElementById('story-ideas-list');
+    const loadMoreBtn    = document.getElementById('story-load-more-btn');
+    const STORY_PAGE_SIZE = 25;
+    let storyOffset = 0;
 
     async function fetchStoryPeople(topic) {
       namePicker.innerHTML = '<option value="">👤 Browse by name…</option>';
@@ -829,40 +851,59 @@
     // Reads the current name + era picker values itself, so either select's
     // change handler (or the shuffle button) can just call this with no args
     // and get results that respect whichever filters are currently set.
-    async function fetchStoryIdeas() {
+    // Pass reset=false (used by the "Show 25 more" button) to append the
+    // next page onto the existing list instead of replacing it.
+    async function fetchStoryIdeas(reset = true) {
       const person = namePicker.value;
       const era    = eraPicker.value;
+      const filtered = !!(person || era);
+
+      if (reset) storyOffset = 0;
 
       storyIdeasBtn.disabled = true;
       namePicker.disabled = true;
       eraPicker.disabled = true;
+      loadMoreBtn.disabled = true;
       const original = storyIdeasBtn.textContent;
-      if (!person && !era) storyIdeasBtn.textContent = '🎲 Shuffling…';
+      const originalMore = loadMoreBtn.textContent;
+      if (!filtered) storyIdeasBtn.textContent = '🎲 Shuffling…';
+      if (!reset) loadMoreBtn.textContent = 'Loading…';
 
       try {
         let url = `/random-stories?topic=${encodeURIComponent(currentTopic)}`;
         if (person) url += `&person=${encodeURIComponent(person)}`;
         if (era)    url += `&era=${encodeURIComponent(era)}`;
+        if (filtered) url += `&offset=${storyOffset}`;
         const res  = await fetch(url);
         const data = await res.json();
 
         if (data.stories && data.stories.length) {
-          storyIdeasList.innerHTML = data.stories.map(s =>
+          const html = data.stories.map(s =>
             `<span class="example-q story-chip" title="${escAttr(s.category || '')}">${escHtml(s.hook)}</span>`
           ).join('');
+          storyIdeasList.innerHTML = reset ? html : storyIdeasList.innerHTML + html;
           bindStoryChips();
-        } else {
+        } else if (reset) {
           storyIdeasList.innerHTML = `<span class="story-ideas-empty">${escHtml(data.message || 'No story ideas yet for this archive.')}</span>`;
         }
+
+        loadMoreBtn.style.display = (filtered && data.has_more) ? 'inline-block' : 'none';
       } catch (e) {
-        storyIdeasList.innerHTML = `<span class="story-ideas-empty">Could not load story ideas. Try again.</span>`;
+        if (reset) storyIdeasList.innerHTML = `<span class="story-ideas-empty">Could not load story ideas. Try again.</span>`;
       }
 
       storyIdeasBtn.disabled = false;
       namePicker.disabled = false;
       eraPicker.disabled = false;
+      loadMoreBtn.disabled = false;
       storyIdeasBtn.textContent = original;
+      loadMoreBtn.textContent = originalMore;
     }
+
+    loadMoreBtn.addEventListener('click', () => {
+      storyOffset += STORY_PAGE_SIZE;
+      fetchStoryIdeas(false);
+    });
 
     function bindStoryChips() {
       storyIdeasList.querySelectorAll('.story-chip').forEach(el => {
@@ -879,8 +920,8 @@
       fetchStoryIdeas();
     });
 
-    namePicker.addEventListener('change', fetchStoryIdeas);
-    eraPicker.addEventListener('change', fetchStoryIdeas);
+    namePicker.addEventListener('change', () => fetchStoryIdeas(true));
+    eraPicker.addEventListener('change', () => fetchStoryIdeas(true));
 
     fetchStoryPeople(currentTopic);
     fetchStoryEras(currentTopic);
@@ -915,6 +956,8 @@
       storyIdeasList.innerHTML = '';
       namePicker.value = '';
       eraPicker.value = '';
+      storyOffset = 0;
+      loadMoreBtn.style.display = 'none';
       fetchStoryPeople(topic);
       fetchStoryEras(topic);
     }
